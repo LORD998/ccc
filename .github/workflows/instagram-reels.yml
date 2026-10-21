@@ -13,8 +13,7 @@ on:
     paths:
       - ".github/workflows/instagram-reels.yml"
       - "scripts/public_instagram.py"
-  schedule:
-    - cron: "25 5 * * *"
+      - "scripts/browser_probe.py"
 
 permissions:
   contents: write
@@ -49,7 +48,7 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             # Primeiro teste seguro: um único perfil, sem varrer todos.
-            python scripts/public_instagram.py --profile elianarute_
+            python scripts/browser_probe.py --profile elianarute_
           elif [[ -n "$PROFILE_REQUESTED" ]]; then
             python scripts/public_instagram.py --profile "$PROFILE_REQUESTED"
           else
