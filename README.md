@@ -1,15 +1,14 @@
 # Criadores Cristãos — observatório Instagram
 
-Este repositório executa uma experiência de recolha **gratuita**, por GitHub Actions, de contagens públicas de Reels de perfis do observatório [Criadores Cristãos em Portugal](https://criadores.109-205-177-192.sslip.io/).
+Teste **sem custos e sem utilizar o Mac** com GitHub Actions para ler apenas informações que o Instagram publica anonimamente nas páginas de Reels. Não descarrega vídeos, não utiliza palavras-passe, contas Meta, proxies nem serviços pagos.
 
-**Sem login Instagram, sem passwords, sem compra de APIs e sem usar o Mac.** São lidas exclusivamente informações disponibilizadas anonimamente pelas páginas públicas. O Instagram pode bloquear ou omitir os dados; nessas situações o sistema **não inventa números**.
+**Estado do teste (21/10/2026):** o primeiro pedido HTTP a partir do runner GitHub foi bloqueado pelo Instagram com HTTP 429. Uma tentativa com Chrome na linha de comandos não devolveu conteúdo. Está a ser testada uma última variante com Playwright; a versão automática diária permanece **desligada** para não repetir pedidos bloqueados. Não há números Instagram verificados publicados.
 
-- Código: `scripts/public_instagram.py`
+- Recolha: `scripts/public_instagram.py` (até 12 Reels públicos recentes por perfil)
+- Teste Playwright: `scripts/browser_probe.py` (um perfil, sem login)
 - Workflow: `.github/workflows/instagram-reels.yml`
-- Resultados públicos gerados, caso existam: `data/instagram-public.json`
-- Dados representados: seguidores disponíveis, contagem de Reels observados e visualizações/gostos dos até **12 Reels recentes** por perfil; isto **não** é o total histórico da conta.
-- O workflow corre uma vez por dia e também pode ser iniciado manualmente na aba **Actions**.
+- Saída de cada teste: artefacto GitHub Actions com diagnóstico honesto; uma amostra só é publicada em `data/instagram-public.json` se os números forem efetivamente encontrados.
 
-O GitHub Actions tem quotas, e a recolha pode falhar quando o Instagram recusa tráfego de servidores cloud. Não se deve confundir um teste de leitura bem-sucedido num navegador local com a disponibilidade num runner do GitHub.
+O workflow pode ser lançado manualmente em **Actions → Instagram publico — teste gratuito → Run workflow**, mas não tem agenda diária até passar o teste. Os dados de Reels recentes nunca representam o total histórico de cada conta.
 
-Segredos e tokens não pertencem ao repositório: o relatório publicado contém apenas contagens públicas e identificadores públicos dos posts. A integração final com a VPS será feita somente depois de validarmos os resultados no runner.
+A VPS do observatório permanece independente. O Instagram pode restringir o acesso a partir de servidores cloud; nesse caso não vamos inventar números nem insistir nos pedidos.

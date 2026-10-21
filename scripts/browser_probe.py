@@ -1,57 +1,58 @@
 #!/usr/bin/env python3
-"""Single anonymous Chrome browser smoke test on the GitHub-hosted runner.
-
-No Instagram account, cookies, password, proxy, or paid service. This only
-tests whether real public Reels metadata is returned to a GitHub runner.
-"""
+"""Single anonymous Playwright-Chrome verification from a GitHub-hosted runner."""
 from datetime import datetime, timezone
 import argparse
 import json
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
+from playwright.sync_api import sync_playwright
 from public_instagram import extract_public_metrics, get_accounts
 
 
 def main():
-    cli = argparse.ArgumentParser()
-    cli.add_argument("--profile", default="elianarute_")
-    cli.add_argument("--output", default="data/instagram-public.json")
-    args = cli.parse_args()
-    accounts = get_accounts()
-    if args.profile not in accounts:
-        raise ValueError("Test handle not in observatory list")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", default="elianarute_")
+    parser.add_argument("--output", default="data/instagram-public.json")
+    args = parser.parse_args()
+    if args.profile not in get_accounts():
+        raise ValueError("Perfil nao consta da lista autorizada")
 
-    browser = next((shutil.which(name) for name in
-                    ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser")
-                    if shutil.which(name)), None)
     observed = None
-    reason = "browser_missing"
-    if browser:
-        with tempfile.TemporaryDirectory(prefix="gh-ig-") as profile_dir:
-            command = [browser, "--headless=new", "--no-sandbox",
-                       "--disable-gpu", "--disable-dev-shm-usage",
-                       "--no-first-run", "--no-default-browser-check",
-                       "--disable-extensions",
-                       "--user-data-dir=" + profile_dir,
-                       "--virtual-time-budget=8000",
-                       "--dump-dom",
-                       f"https://www.instagram.com/{args.profile}/reels/"]
+    reason = "browser_unavailable"
+    http_status = None
+    page_size = 0
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                channel="chrome",
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
             try:
-                result = subprocess.run(command, capture_output=True,
-                                        text=True, timeout=65, check=False)
-                html = result.stdout[:4_000_000]
-                observed = extract_public_metrics(html, args.profile)
-                reason = "verified" if observed else "public_metrics_absent"
-                print("Chrome exit status:", result.returncode,
-                      "page bytes:", len(html), "observed:", bool(observed))
-            except (OSError, subprocess.TimeoutExpired):
-                reason = "browser_unavailable"
+                page = browser.new_page(locale="pt-PT")
+                response = page.goto(
+                    f"https://www.instagram.com/{args.profile}/reels/",
+                    wait_until="domcontentloaded",
+                    timeout=30000,
+                )
+                http_status = response.status if response else None
+                if http_status == 429:
+                    reason = "rate_limited"
+                elif http_status != 200:
+                    reason = "http_unavailable"
+                else:
+                    page.wait_for_timeout(2100)
+                    markup = page.content()[:4_000_000]
+                    page_size = len(markup)
+                    observed = extract_public_metrics(markup, args.profile)
+                    reason = "verified" if observed else "public_metrics_absent"
+            finally:
+                browser.close()
+    except Exception as err:
+        reason = type(err).__name__
 
-    posts = observed["reels"] if observed else {}
-    payload = {
+    reels = observed["reels"] if observed else {}
+    document = {
         "schema_version": 1,
         "source": "anonymous_instagram_public_reels",
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -60,16 +61,17 @@ def main():
         "coverage": {
             "measured_profiles": 1 if observed else 0,
             "requested_profiles": 1,
-            "observed_unique_reels": len(posts),
+            "observed_unique_reels": len(reels),
         },
-        "views_recent_deduplicated": (sum(x["views"] for x in posts.values()) if posts else None),
+        "views_recent_deduplicated": sum(r["views"] for r in reels.values()) if reels else None,
         "profiles": [observed] if observed else [],
         "unavailable": [] if observed else [{"username": args.profile, "reason": reason}],
     }
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print("Chrome test: real public metrics verified =", bool(observed), "reason =", reason)
+    target = Path(args.output)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print("Playwright HTTP status:", http_status, "HTML characters:", page_size)
+    print("Playwright real public metrics:", bool(observed), "reason:", reason)
 
 
 if __name__ == "__main__":

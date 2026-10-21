@@ -36,7 +36,7 @@ jobs:
           python-version: "3.12"
 
       - name: Instalar so biblioteca leve
-        run: python -m pip install --disable-pip-version-check --no-cache-dir curl_cffi==0.16.3
+        run: python -m pip install --disable-pip-version-check --no-cache-dir curl_cffi==0.16.3 playwright==1.56.0
 
       - name: Verificar sintaxe
         run: python -m py_compile scripts/public_instagram.py
